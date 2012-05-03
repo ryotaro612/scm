@@ -84,8 +84,8 @@
     (display (my-eval (read) '()))
     (newline)
     (loop)))
-    
 
+(my-scm)
 ; Toplevel ::= Exp
 ;            | Define
 ;            | Define-Macro
