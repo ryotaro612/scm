@@ -1,8 +1,8 @@
 ;;; varがマクロとして定義されていたら#t, それ以外は#fを返す.
 (define (macro-name? var)
-  (if (member var *macro-symbols*)
+  (if (member var *macro-symbols*))
       #t
-      #f))
+      #f)
 
 ;;; *macro-symbols*からvarを削除する
 ;;; 返値をあてにしてはならない

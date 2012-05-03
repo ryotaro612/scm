@@ -1,7 +1,11 @@
+
+
 ;;; 大域環境のシンボルの管理
 (define *global-env* '())
+
 ;;; 大域環境のマクロの管理
 (define *macro-symbols* '())
+
 ;;; エラー時の大域脱出のための関数
 (define init "abort")
 

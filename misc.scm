@@ -25,4 +25,3 @@
   (if (and (list? x) (eq? (car (macro-expand x env)) 'define))
       #t
       #f))
-  
