@@ -237,10 +237,10 @@
 ;;; (lambda Arg Body)
 ;;; Arg  ::= Id | (Id* [Id . Id])
 ;;; Body ::= Define* Exp+
-
 (define (my-lambda x env)
   (let ((parms (cadr x))
-	(code  (lambda-body (cddr x))))
+	;; (code  (lambda-body (cddr x)))) ;; 変更
+	(code (trans-body (cddr x) env)))
     (lambda args (my-eval code (extend-env parms args env)))))
 
 ;;; my-lambdaで使う
@@ -250,18 +250,61 @@
       (car lamb)
       (cons 'begin lamb)))
 
-;;; bodyがDefineだけで構成されていた場合も考慮しろ
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define (trans-body body env)
+  (let* ((bitterbody (get-bitterbody body env))
+	 (defpart (get-defpart bitterbody))
+	 (exppart (get-exppart bitterbody)))
+    (cond 
+     ((and (null? defpart) (null? exppart))
+      '())
+     ((and (null? defpart) (= (length exppart) 1))
+      (car exppart))
+     ((null? defpart)
+      (cons 'begin exppart))
+     (else
+      `(letrec ,defpart ,@exppart)))))
+;;; 
+(define (get-bitterbody body env)
+  (if (null? body)
+      '()
+      (cons (make-bodydefbitter (car body) env)
+	    (get-bitterbody (cdr body) env))))
+
+;;; xが'defineで始まるリストなら糖衣構文を解いて返し, それ以外は与えられたxをそのまま返す.
 (define (make-bodydefbitter x env)
   (let ((maybedef (macro-expand x env)))
-    (if (eq? (car maybef) 'define)
-	(make-defbitter maybedef)
+    (if (and (list? maybedef) (eq? (car maybedef) 'define))
+	(get-bitterdef maybedef)
 	maybedef)))
 	
 ;;; 先頭がdefineのdefine構文のリストが糖衣構文であれば基本形に変形したものを返す
 ;;; get-bitterdefの方が適切
-(define (make-defbitter x)
+(define (get-bitterdef x)
   (if (not (eq? (car x) 'define))
-      (abort `("error make bitter: " ,x)))
+      (abort `("error get bitter define syntax: " ,x)))
   (if (symbol? (cadr x))
       x
       `(define ,(caadr x) (lambda ,(cdadr x) ,@(cddr x)))))
+
+;;;
+(define (get-defpart bitterbody)
+  (cond
+   ((or (null? bitterbody) (not (list? (car bitterbody))))
+    '())
+   ((eq? (caar bitterbody) 'define)
+    (cons (cdar bitterbody) (get-defpart (cdr bitterbody))))
+   (else
+    '())))
+;;;
+(define (get-exppart bitterbody)
+  (cond
+   ((null? bitterbody)
+    '())
+   ((symbol? (car bitterbody))
+    (cons (car bitterbody) (get-exppart (cdr bitterbody))))
+   ((eq? (caar bitterbody) 'define)
+    (get-exppart (cdr bitterbody)))
+   (else
+    (cons (car bitterbody) (get-exppart (cdr bitterbody))))))
