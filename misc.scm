@@ -19,8 +19,15 @@
    (else
     (display info) (newline) (init))))
 
+;;; predが#fの場合にabortを呼び出す
+(define (assert info pred)
+  (if (not pred)
+      (abort info)))
+
+;;; 使用している？
 ;;; xがDefineで表わされるならば#t, それ以外では#fを返す
 ;;; Defineである条件は, 先頭が'defineで始まること.
+;;; xがマクロであれば展開後のリストを調べる. 
 (define (define? x env)
   (if (and (list? x) (eq? (car (macro-expand x env)) 'define))
       #t

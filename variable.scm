@@ -36,9 +36,9 @@
      ((assoc var *global-env*) (assoc var *global-env*))
      (else                     #f))))
 
-;;; 変数が未定義の場合の返値は不定.
+;;; 変数が未定義の場合の返値はエラー
 (define (get-val var env)
   (let ((info (get-varinfo var env)))
     (if info
-	(cdr info)
-	(begin (display var) (display " is not defined.") (newline)))))
+	(cdr info) ; 値が見つかったケース
+	(abort `(,var " is unbound. ")))))

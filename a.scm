@@ -1,13 +1,70 @@
-;;; define-macroはトップレベルでのみ需要する.
-;;; define-macroの糖衣構文が未対応
-;;; AST: abstract syntax tree 抽象構文木. 葉: leaf node 節点 internal node
-;;; ask-node(node-name) -> #t #fでノードが期待したものかどうか判定する述語をつくる。
+;;; #################################### NOTE ####################################
+
+;;; 2. and or cond をletrecを用いたアサーションを追加する. 
+;;; 3. eval-bodyを
+
+;;; (symbol? 1) ==> #f アトミックかどうかの検証はnot pair?を使うこと
+
+;;; eval-expからmy-defineを取り除くこと  
+
+;;; evel-bodyが必要か? my-define中のBodyの評価にeval-expを使用しており構文的に問題が出てくるおそれが高い
+
+;;; do文でbeginを使用してはいけないExpではなくBodyである
+
+;;; my-define-macroのeval-expを検討
+
+;;; ###############################################################################
 '()
 
-(load "./syntax.scm")
-(load "./misc.scm")
 (load "./init.scm")
+(load "./misc.scm")
+(load "./syntax.scm")
 (load "./variable.scm")
+
+;;; eval TopLevel
+(define (my-eval x env)
+  (cond 
+   ((symbol? x)           (eval-exp x env))
+   ((not (pair? x))       (eval-exp x env))
+   ((macro-name? (car x)) (my-eval (macro-expand x env) env))
+   (else
+    (case (car x)
+      ((define)       (my-define       x env))
+      ((define-macro) (my-define-macro x env))
+      ((load)         (abort           `("UNDER CONSTRUCTION")))
+      (else           (eval-exp        x env))))))
+
+;;; eval Exp
+;;; xよりもexpの方がよいのでは?
+(define (eval-exp x env)
+  (cond
+   ((symbol? x)     (get-val x env))
+   ((not (pair? x)) x)
+   ((macro-name? (car x)) (my-eval (macro-expand x env) env))
+   (else
+    (case (car x)
+      ;; DefineはExpに含まれないからmy-defineは消さなければならない
+      ((define)       (my-define       x env))
+      ((lambda)       (my-lambda       x env))
+      ((quote)        (cadr            x    ))
+      ((set!)         (my-set!         x env))
+      ((let)          (my-let          x env))
+      ((let*)         (my-let*         x env))
+      ((letrec)       (my-letrec       x env))
+      ((if)           (my-if           x env))
+      ((cond)         (my-cond         x env))
+      ((and)          (my-and          x env))
+      ((or)           (my-or           x env))
+      ((begin)        (my-begin        x env))
+      ((do)           (my-do           x env))
+      (else
+       (apply (my-eval (car x) env)
+	      (map (lambda (y) (my-eval y env)) (cdr x))))))))
+
+;;; eval Body
+(define (eval-body body env)
+  ;; ここに 構文チェックを入れる
+  (eval-exp (trans-body body env) env))
 
 ;;;   Add some variables and values to an environment.
 (define (extend-env vars vals env)
@@ -27,9 +84,9 @@
 	newenv))
    ;; ((lambda (x y z . w) <body>) a b c d)
    ((and (not (symbol? vars)) (not (list? vars)))
-      (extend-env-sub vars vals env))))
+      (extend-env-sub vars vals env)))) 
 
-;;; ((lambda (x y z . w) <body>) a b c d) のときに使用
+;;; extend-envで, ((lambda (x y z . w) <body>) a b c d) のときに使用
 (define (extend-env-sub vars vals env)
   (cond
    ((symbol? (cdr vars))
@@ -47,33 +104,6 @@
       (macro-expand (apply (get-val (car x) env) (cdr x)) env)
       x))
 
-;;; 
-(define (my-eval x env)
-  (cond
-   ((symbol? x)           (get-val x env))
-   ((not (pair? x))       x)
-   ((macro-name? (car x)) (my-eval (macro-expand x env) env))
-   ((pair? x)
-    (case (car x)
-      ((define)       (my-define       x env))
-      ((lambda)       (my-lambda       x env))
-      ((quote)        (cadr            x    ))
-      ((set!)         (my-set!         x env))
-      ((let)          (my-let          x env))
-      ((let*)         (my-let*         x env))
-      ((letrec)       (my-letrec       x env))
-      ((if)           (my-if           x env))
-      ((cond)         (my-cond         x env))
-      ((and)          (my-and          x env))
-      ((or)           (my-or           x env))
-      ((begin)        (my-begin        x env))
-      ((do)           (my-do           x env))
-      ((define-macro) (my-define-macro x env))
-      (else
-       (apply (my-eval (car x) env)
-	      (map (lambda (y) (my-eval y env))
-		   (cdr x))))))))
-
 ;;; インタプリタ呼出し
 (define (my-scm)
   (call/cc (lambda (cc) (set! init cc)))
@@ -86,6 +116,7 @@
     (loop)))
 
 (my-scm)
+
 ; Toplevel ::= Exp
 ;            | Define
 ;            | Define-Macro

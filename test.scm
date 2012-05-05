@@ -51,3 +51,21 @@
 		       (let ((m (- n1 1)))
 			 (iter m (* p m)))))))
     (iter n n)))
+
+;;; 継続
+(call/cc (lambda (cont) cont)) ; ==> #<subr continuation>
+
+(+ 1 (* 2 (call/cc (lambda (cont) 3)))) ; ==> 7
+
+(+ 1 (* 2 (call/cc (lambda (cont) (cont 4) 3)))) ; ==> 9
+
+(define *cont* #f) ; ==> *cont*
+(+ 1 (* 2 (call/cc (lambda (cont) (set! *cont* cont) 3)))) ; ==> 7
+
+(*cont* 10) ; ==> 21
+
+(*cont* 100) ; ==> 201
+
+;;; do
+(define (fact-do n)
+  (do ((n1 n (- n1 1)) (p n (* p (- n1 1)))) ((= n1 1) p)))
