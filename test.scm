@@ -1,29 +1,18 @@
-;<body>の変更は次のようする
-;(let ((x 5))
-;  (define foo (lambda (y) (bar x y)))
-;  (define bar (lambda (a b) (+ (* a b) a)))
-;  (foo (+ x 3)))
-;
-;(let ((x 5))
-;  (letrec ((foo (lambda (y) (bar x y)))
-;	   (bar (lambda (a b) (+ (* a b) a))))
-;    (foo (+ x 3))))
+;;; 継続
+(call/cc (lambda (cont) cont)) ; ==> #<subr continuation>
 
-;;; 継続のテスト
-(call/cc (lambda (cont) cont))
-(+ 1 (* 2 (call/cc (lambda (cont) 3))))
+(+ 1 (* 2 (call/cc (lambda (cont) 3)))) ; ==> 7
 
-(+ 1 (* 2 (call/cc (lambda (cont) (cont 4) 3))))
+(+ 1 (* 2 (call/cc (lambda (cont) (cont 4) 3)))) ; ==> 9
 
-(define *cont* #f)
+(define *cont* #f) ; ==> *cont*
+(+ 1 (* 2 (call/cc (lambda (cont) (set! *cont* cont) 3)))) ; ==> 7
 
-(+ 1 (* 2 (call/cc (lambda (cont) (set! *cont* cont) 3))))
+(*cont* 10) ; ==> 21
 
-(*cont* 10)
+(*cont* 100) ; ==> 201
 
-(*cont* 100)
-
-;;; マクロのテスト
+;;; マクロ
 (define a 1)
 ;;; (positive a) ==> (> 1 0)
 (define positive (lambda (x) (list '> x 0)))
@@ -51,20 +40,6 @@
 		       (let ((m (- n1 1)))
 			 (iter m (* p m)))))))
     (iter n n)))
-
-;;; 継続
-(call/cc (lambda (cont) cont)) ; ==> #<subr continuation>
-
-(+ 1 (* 2 (call/cc (lambda (cont) 3)))) ; ==> 7
-
-(+ 1 (* 2 (call/cc (lambda (cont) (cont 4) 3)))) ; ==> 9
-
-(define *cont* #f) ; ==> *cont*
-(+ 1 (* 2 (call/cc (lambda (cont) (set! *cont* cont) 3)))) ; ==> 7
-
-(*cont* 10) ; ==> 21
-
-(*cont* 100) ; ==> 201
 
 ;;; do
 (define (fact-do n)

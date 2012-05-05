@@ -279,7 +279,7 @@
      ((and (null? defpart) (= (length exppart) 1))
       (car exppart))
      ((null? defpart)
-      exppart)
+      (cons 'begin exppart))
      (else
       `(letrec ,defpart ,@exppart)))))
 
