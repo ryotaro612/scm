@@ -62,9 +62,9 @@
 	      (map (lambda (y) (my-eval y env)) (cdr x))))))))
 
 ;;; eval Body
-(define (eval-body body env)
+;(define (eval-body body env)
   ;; ここに 構文チェックを入れる
-  (eval-exp (trans-body body env) env))
+;  (eval-exp (trans-body body env) env))
 
 ;;;   Add some variables and values to an environment.
 (define (extend-env vars vals env)

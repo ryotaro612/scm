@@ -266,7 +266,7 @@
 (define (my-lambda x env)
   (let ((parms (cadr x))
 	(code (trans-body (cddr x) env)))
-    (lambda args (eval-body code (extend-env parms args env)))))
+    (lambda args (eval-exp code (extend-env parms args env)))))
 
 ;;; bodyがDefine+Exp*であれば等価なletrecに変換された式を返す
 (define (trans-body body env)
