@@ -29,7 +29,7 @@
 a ;==> 4
 
 ;;; let
-(let ((x 2) (y 4)) (define z (+ x y)) z)
+(let ((x 2) (y 4)) (define z (+ x y)) z) ==> 6
 
 ;;; 名前付きlet
 (define (fact n)

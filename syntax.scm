@@ -194,31 +194,22 @@
 		      (cdr x))))))
 
 ;;; (do ((Id Exp Exp)*) (Exp Exp*) Body)
-;;; letrecに変形
 ;;; アサーションを後でつけること
 (define (my-do x env)
-  (let ((a (cadr x)) (b (caddr x)) (body (cdddr x)))
-    (if (null? a)
-	(my-letrec
-	 `(letrec ((do-iter (lambda () (if ,(car b)
-					   (begin ,@(cdr b))
-					   (begin ,@body (do-iter))))))
-	    (do-iter))
-	 env)
-	(my-letrec
-	 `(letrec ((do-iter 
-		    (lambda ,(map car a) 
-		      (if ,(car b)
-			  (begin ,@(cdr b))
-			  (begin 
-			    ,@body
-			    (do-iter 
-			     ,@(map (lambda (lst) (if (< (length lst) 3)
-						      (car lst)
-						      (caddr lst)))
-				    a)))))))
-	    (do-iter ,@(map cadr a)))
-	 env))))
+  (let loop ((ex-env (extend-env 
+		      (map car (cadr x)) 
+		      (map (lambda (vis) (eval-exp (cadr vis) env))
+			   (cadr x)) 
+		      env)))
+    (if (eval-exp (caaddr x) ex-env)
+	(eval-exp `(begin ,@(cdaddr x)) ex-env)
+	(begin (eval-body (cdddr x) ex-env) 
+	       (loop (extend-env 
+		      (map car (cadr x)) 
+		      (map 
+		       (lambda (vis) (eval-exp (caddr vis) ex-env))
+		       (cadr x))
+		      extend-env))))))
 
 ;;; (define-macro Id Exp) | (define-macro (Id Id* [. Id]) Body)
 (define (my-define-macro x env)
