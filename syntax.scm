@@ -116,10 +116,10 @@
 	       (>= (length x) 3) (bindings-syn? (cadr x))))
   (if (null? (cadr x))
       ;; 束縛がないケース
-      (eval-exp `(,`(lambda () ,@(cddr x))) env)
+      (eval-exp `((lambda () ,@(cddr x))) env)
       ;; 束縛があるケース
       (my-let
-       `(let ,(map (lambda (lst) (list (car lst) "<undef>")) (cadr x))
+       `(let ,(map (lambda (lst) (list (car lst) "<#undef#>")) (cadr x))
 	  ,@(map (lambda (lst) (cons 'set! lst)) (cadr x)) ,@(cddr x))
        env)))
 
@@ -131,7 +131,7 @@
   (if (eval-exp (cadr x) env)
       (eval-exp (caddr x) env)
       (if (not (null? (cdddr x)))
-	  (my-eval (cadddr x) env))))
+	  (eval-exp (cadddr x) env))))
 
 ;;; (cond (Exp Exp+)* [(else Exp+)])
 ;;; すべてのテストの値が#fでelse節がなければ式の値は未規定
@@ -146,7 +146,7 @@
     (eval-exp `(begin ,@(cdadr x)) env))
    ;; 最後の節のテストが#f
    ((null? (cddr x))
-    "<undef>")
+    "<#undef#>")
    ;; 節のテストが#f
    (else
     (my-cond (cdr x) env))))
@@ -202,7 +202,7 @@
 	(my-letrec
 	 `(letrec ((do-iter (lambda () (if ,(car b)
 					   (begin ,@(cdr b))
-					   (begin ,@body (do-iter)))))) 
+					   (begin ,@body (do-iter))))))
 	    (do-iter))
 	 env)
 	(my-letrec
@@ -211,7 +211,7 @@
 		      (if ,(car b)
 			  (begin ,@(cdr b))
 			  (begin 
-			    ,@body 
+			    ,@body
 			    (do-iter 
 			     ,@(map (lambda (lst) (if (< (length lst) 3)
 						      (car lst)

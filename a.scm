@@ -1,17 +1,15 @@
 ;;; #################################### NOTE ####################################
 
+;;; 昨夜の変更内容のテストを行なった後でand orのアサーションを入れよう
+
 ;;; 2. and or cond をletrecを用いたアサーションを追加する. 
 ;;; 3. eval-bodyを
 
 ;;; (symbol? 1) ==> #f アトミックかどうかの検証はnot pair?を使うこと
 
-;;; eval-expからmy-defineを取り除くこと  
+;;; bodyはlambdaでしか評価しないから, eval-bodyはいらないと思われる. 
 
-;;; evel-bodyが必要か? my-define中のBodyの評価にeval-expを使用しており構文的に問題が出てくるおそれが高い
-
-;;; do文でbeginを使用してはいけないExpではなくBodyである
-
-;;; my-define-macroのeval-expを検討
+;;; transbodyはconvtoexpへ名前を変えたほうがいい
 
 ;;; ###############################################################################
 '()
@@ -61,6 +59,7 @@
        (apply (my-eval (car x) env)
 	      (map (lambda (y) (my-eval y env)) (cdr x))))))))
 
+;;; いらない？
 ;;; eval Body
 ;(define (eval-body body env)
   ;; ここに 構文チェックを入れる

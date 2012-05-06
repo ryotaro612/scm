@@ -19,6 +19,18 @@
 ;;; (psitive a)  ==> #t
 (define-macro positive (lambda (x) (list '> x 0)))
 
+(define a 4) ; ==> a
+
+(define-macro (def! x) (list 'define x ''())) ; ==> def!
+
+(define (f x) (def! x) x) ; ==> f
+(f a) ; ==> ()
+
+a ;==> 4
+
+;;; let
+(let ((x 2) (y 4)) (define z (+ x y)) z)
+
 ;;; 名前付きlet
 (define (fact n)
   (let iter ((n n) (a 1))
@@ -43,4 +55,5 @@
 
 ;;; do
 (define (fact-do n)
-  (do ((n1 n (- n1 1)) (p n (* p (- n1 1)))) ((= n1 1) p)))
+  (do ((n1 n (- n1 1)) (p n (* p (- n1 1))))
+      ((= n1 1) p)))
