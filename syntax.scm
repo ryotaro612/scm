@@ -31,6 +31,20 @@
    (else
     (abort `("define misc error: " ,x)))))
 
+;;; (define (Id Id* [. Id]) Body) -> (define Id Exp)
+(define (desugar-def def)
+  (assert `("error define syntax: " ,def) (define? def))
+  (if (symbol? (cadr def))
+      def
+      `(define ,(caadr def) (lambda ,(cdadr def) ,@(cddr def)))))
+
+;;; (define Id Exp) | (define (Id Id* [. Id]) Body) ???
+(define (define? def)
+  (if (and (list? def) (>= (length def) 3) (eq? (car def) 'define)
+	   (or (symbol? (cadr def)) (and (pair? (cadr def)) (symbol? (caadr def)))))
+      #t
+      #f))
+
 ;;; (set! Id Exp)
 (define (my-set! x env)
   (assert `("error set! syntax: " ,x) 
@@ -134,37 +148,40 @@
 
 ;;; (cond (Exp Exp+)* [(else Exp+)])
 (define (my-cond exp env)
-  (letrec ((cond? (lambda (expr)
-		    (cond ((null? expr)
-			   #t)
-			  ;; (Exp Exp+)*
-			  ((and (list? (car expr)) (>= (length (car expr)) 2) 
-				(not (eq? (caar expr) 'else)))
-			   (cond? (cdr expr)))
-			  ;;
-			  ((and (list? (car expr)) (>= (length (car expr)) 2) 
-				(eq? (caar expr) 'else) (null? (cdr expr)))
-			   #t)
-			  (else
-			   #f))))
-	   (cond-sub (lambda (expr env)
-		       (cond
-			;; 最後の節のテストが#f
-			((null? expr)
-			 "<#undef#>")
-			;; (else Exp+)
-			((eq? (caar expr) 'else)
-			 (eval-exp `(begin ,@(cdar expr)) env))
-			;; (Exp Exp+) 
-			((eval-exp (caar expr) env)
-			 (eval-exp `(begin ,@(cdar expr)) env))
-			;; 節のテストが#f
-			(else
-			 (cond-sub (cdr expr) env))))))
-    (assert `("error cond syntax: " ,exp)
-	    (and (list? exp) (eq? (car exp) 'cond) (cond? (cdr exp))))
-    (cond-sub (cdr exp) env)))
-	 
+  (define (cond? expr) 
+    (cond ((null? expr)
+	   #t)
+	  ;; (Exp Exp+)*
+	  ((and (list? (car expr)) (>= (length (car expr)) 2) 
+		(not (eq? (caar expr) 'else)))		
+	   (cond? (cdr expr)))
+	  ;; (else Exp+)*
+	  ((and (list? (car expr)) (>= (length (car expr)) 2)
+		(eq? (caar expr) 'else) (null? (cdr expr)))
+	   #t)
+	  (else
+	   #f)))
+  (define (cond-sub expr env)
+    (cond
+     ;; 最後の節のテストが#f
+     ((null? expr)
+      "<#undef#>")
+     ;; (else Exp+)
+     ((eq? (caar expr) 'else)
+      (eval-exp `(begin ,@(cdar expr)) env))
+     ;; (Exp Exp+) 
+     ((eval-exp (caar expr) env)
+      (eval-exp `(begin ,@(cdar expr)) env))
+     ;; 節のテストが#f
+     (else
+      (cond-sub (cdr expr) env))))
+
+  (assert `("error cond syntax: " ,exp)
+	  (and (list? exp) (eq? (car exp) 'cond) (>= (length exp) 2) 
+	       (list? (cadr exp)) (not (null? (cadr exp))) (cond? (cdr exp))))
+
+  (cond-sub (cdr exp) env))
+
 ;;; (and Exp*)
 (define (my-and exp env)
   (assert `("error and syntax: " ,exp) (and (list? exp) (eq? (car exp) 'and)))
@@ -210,42 +227,41 @@
 
 ;;; (do ((Id Exp Exp)*) (Exp Exp*) Body)
 (define (my-do exp env)
-  (letrec ((iter-specs? 
-	    (lambda (iter-specs) 
-	      (cond ((null? iter-specs)
-		     #t)
-		    ((and (list? (car iter-specs)) (= (length (car iter-specs)) 3) 
-			  (symbol? (caar iter-specs)))
-		     (iter-specs? (cdr iter-specs)))
-		    (else
-		     #f)))))
+  (define (iter-specs? iter-specs)
+    (cond ((null? iter-specs)
+	   #t)
+	  ((and (list? (car iter-specs)) (= (length (car iter-specs)) 3) 
+		(symbol? (caar iter-specs)))
+	   (iter-specs? (cdr iter-specs)))
+	  (else
+	   #f)))
 
-    (assert `("error do syntax: " ,exp)
-	    (and (list? exp) (eq? (car exp) 'do) (>= (length exp) 4)
-		 (iter-specs? (cadr exp)) (list? (caddr exp)) 
-		 (not (null? (caddr exp)))))
-
-    (let loop ((iter-specs  (cadr   exp))
-	       (test        (caaddr exp))
-	       (tail-seq    (cdaddr exp)) ; nullのときは?
-	       (body        (cdddr  exp))
-	       (ex-env (extend-env 
-			(map car (cadr exp))
-			(map (lambda (iter-spec) (eval-exp (cadr iter-spec) env)) 
-			     (cadr exp))
-			env)))
-      (if (eval-exp test                ex-env)
-	  (eval-exp `(begin ,@tail-seq) ex-env)
-	  (begin (eval-body body ex-env)
-		 (loop iter-specs test tail-seq body
-		       (extend-env (map car iter-specs)
-				   (map (lambda (iter-spec) (eval-exp (caddr iter-spec) ex-env)) 
-					iter-specs)
-				   ex-env)))))))
+  (assert `("error do syntax: " ,exp)
+	  (and (list? exp) (eq? (car exp) 'do) (>= (length exp) 4)
+	       (iter-specs? (cadr exp)) (list? (caddr exp)) 
+	       (not (null? (caddr exp)))))
+  
+  (let loop ((iter-specs  (cadr   exp))
+	     (test        (caaddr exp))
+	     (tail-seq    (cdaddr exp)) ; nullのときは?
+	     (body        (cdddr  exp))
+	     (ex-env (extend-env 
+		      (map car (cadr exp))
+		      (map (lambda (iter-spec) (eval-exp (cadr iter-spec) env)) 
+			   (cadr exp))
+		      env)))
+    (if (eval-exp test                ex-env)
+	(eval-exp `(begin ,@tail-seq) ex-env)
+	(begin (eval-body body ex-env)
+	       (loop iter-specs test tail-seq body
+		     (extend-env (map car iter-specs)
+				 (map (lambda (iter-spec) (eval-exp (caddr iter-spec) ex-env)) 
+				      iter-specs)
+				 ex-env))))))
 
 ;;; (define-macro Id Exp) | (define-macro (Id Id* [. Id]) Body)
 (define (my-define-macro x env)
-  (assert `("error define syntax: " ,x)
+  (assert `("error define-macro syntax: " ,x)
 	  (and (list? x) (eq? (car x) 'define-macro) (>= (length x) 3)))
   (cond
    ;; (define-macro Id Exp) のケース
@@ -283,6 +299,18 @@
       x
       `(define-macro ,(caadr x) (lambda ,(cdadr x) ,@(cddr x)))))
 
+;;; (define-macro (Id Id* [. Id]) Body) -> (define-macro Id Exp)
+(define (desugar-defmcr defmcr)
+  (assert `("error define-macro syntax: " ,defmcr)
+	  (and (list? defmcr) (not (null? defmcr)) (eq? (car defmcr) 'define-macro)
+	       (>= (length defmcr) 3)))
+  (if (symbol? (cadr defmcr))
+      defmcr
+      (begin
+	(assert `("error define-macro syntax: " ,defmcr)
+		(and (pair? (cadr defmcr)) (symbol? (caadr def))))
+	`(define-macro ,(caadr defmcr) (lambda ,(cdadr defmcr) ,@(cddr defmcr))))))
+
 ;;; (lambda Arg Body)
 ;;; Arg  ::= Id | (Id* [Id . Id])
 ;;; Body ::= Define* Exp+
@@ -291,6 +319,7 @@
 	(code (trans-body (cddr x) env)))
     (lambda args (eval-exp code (extend-env parms args env)))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; bodyがDefine+Exp*であれば等価なletrecに変換された式を返す
 (define (trans-body body env)
   (let* ((bitterbody (get-bitterbody body env))
@@ -342,6 +371,7 @@
     (cons (cdar bitterbody) (get-defpart (cdr bitterbody))))
    (else
     '())))
+
 ;;; Def部がすべて非糖衣構文からなるBodyを受取り, Exp+で表わされる部分をリストで返す. 
 (define (get-exppart bitterbody)
   (cond
