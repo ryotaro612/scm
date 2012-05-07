@@ -209,23 +209,6 @@
 		      (cdr x))))))
 
 ;;; (do ((Id Exp Exp)*) (Exp Exp*) Body)
-;;; アサーションを後でつけること
-(define (my-do2 x env)
-  (let loop ((ex-env (extend-env 
-		      (map car (cadr x)) 
-		      (map (lambda (vis) (eval-exp (cadr vis) env))
-			   (cadr x)) 
-		      env)))
-    (if (eval-exp (caaddr x) ex-env)
-	(eval-exp `(begin ,@(cdaddr x)) ex-env)
-	(begin (eval-body (cdddr x) ex-env) 
-	       (loop (extend-env 
-		      (map car (cadr x)) 
-		      (map 
-		       (lambda (vis) (eval-exp (caddr vis) ex-env))
-		       (cadr x))
-		      extend-env)))))) ;なぜこれが動くの?
-
 (define (my-do exp env)
   (letrec ((iter-specs? 
 	    (lambda (iter-specs) 
@@ -238,10 +221,10 @@
 		     #f)))))
 
     (assert `("error do syntax: " ,exp)
-	    (and (list? exp) (eq? (car exp) 'do) (>= (length exp) 3)
+	    (and (list? exp) (eq? (car exp) 'do) (>= (length exp) 4)
 		 (iter-specs? (cadr exp)) (list? (caddr exp)) 
 		 (not (null? (caddr exp)))))
-    (display (cdddr exp)) (newline)
+
     (let loop ((iter-specs  (cadr   exp))
 	       (test        (caaddr exp))
 	       (tail-seq    (cdaddr exp)) ; nullのときは?
@@ -337,7 +320,7 @@
 ;;; xがマクロであれば展開され, 糖衣構文を解いたものが返される. 
 (define (make-bodydefbitter x env)
   (let ((maybedef (macro-expand x env)))
-    (if (and (list? maybedef) (eq? (car maybedef) 'define))
+    (if (and (list? maybedef) (not (null? x))(eq? (car maybedef) 'define))
 	(get-bitterdef maybedef)
 	maybedef)))
 
@@ -355,7 +338,7 @@
   (cond
    ((or (null? bitterbody) (not (list? (car bitterbody))))
     '())
-   ((eq? (caar bitterbody) 'define)
+   ((and (not (null? (car bitterbody))) (eq? (caar bitterbody) 'define))
     (cons (cdar bitterbody) (get-defpart (cdr bitterbody))))
    (else
     '())))
@@ -364,7 +347,8 @@
   (cond
    ((null? bitterbody)
     bitterbody)
-   ((and (list? (car bitterbody)) (eq? (caar bitterbody) 'define))
+   ((and (list? (car bitterbody)) (not (null? (car bitterbody)))
+	 (eq? (caar bitterbody) 'define))
     (get-exppart (cdr bitterbody)))
    (else
     (cons (car bitterbody) (get-exppart (cdr bitterbody))))))

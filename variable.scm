@@ -32,7 +32,7 @@
 
 ;;; マクロ展開
 (define (macro-expand x env)
-  (if (and (list? x) (macro-name? (car x)))
+  (if (and (list? x) (not (null? x)) (macro-name? (car x)))
       (macro-expand (apply (get-val (car x) env) (cdr x)) env)
       x))
 
