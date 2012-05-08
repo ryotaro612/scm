@@ -2,7 +2,7 @@
 '()
 ;;; (define Id Exp) | (define (Id Id* [. Id]) Body)
 (define (my-define x env)
-  (assert `("error define syntax: " ,x) 
+  (assert `("error define syntax: " ,x)
 	  (and (list? x) (eq? (car x) 'define) (>= (length x) 3)))
   (cond
    ;; (define Id Exp) のケース
@@ -26,14 +26,15 @@
 	(cadr x)))))
    ;; (define (<変数> <仮引数部>) <本体>) -> (define <変数> (lambda (<仮引数部>) <本体>))
    ;; (define (<変数> . <仮引数>) <本体>) -> (define <変数> (lambda <仮引数> <本体>))
-   ((pair? (cadr x))
-    (my-define (get-bitterdef x) env))
+   ((and (pair? (cadr x)) (symbol? (caadr x)))
+    (my-define 
+     `(define ,(caadr x) (lambda ,(cdadr x) ,@(cddr x)))
+     env))
    (else
     (abort `("define misc error: " ,x)))))
 
 ;;; (define (Id Id* [. Id]) Body) -> (define Id Exp)
 (define (desugar-def def)
-  (assert `("error define syntax: " ,def) (define? def))
   (if (symbol? (cadr def))
       def
       `(define ,(caadr def) (lambda ,(cdadr def) ,@(cddr def)))))
@@ -62,7 +63,6 @@
      (else
       (abort `(,id " is not defined."))))))
 
-;;; xがBindings ::= ((Id Exp)*) の形式になっているか調べる
 (define (bindings? x)
   (cond
    ((null? x)
@@ -73,7 +73,6 @@
     #f)))
 
 ;;; (let [Id] Bindings Body)
-;;; 名前付きletの処理はmy-namedletに依頼する
 (define (my-let x env)
   (assert `("error let syntax: " ,x)
 	  (and (list? x) (eq? (car x) 'let) (>= (length x) 3)))
@@ -262,19 +261,19 @@
 ;;; (define-macro Id Exp) | (define-macro (Id Id* [. Id]) Body)
 (define (my-define-macro x env)
   (assert `("error define-macro syntax: " ,x)
-	  (and (list? x) (eq? (car x) 'define-macro) (>= (length x) 3)))
+	  (and (list? x) (>= (length x) 3) (eq? (car x) 'define-macro)))
   (cond
    ;; (define-macro Id Exp) のケース
    ((symbol? (cadr x))
     (let ((var-info (get-varinfo (cadr x) env)))
       (cond
        ;; varがマクロとして定義されているケース
-       ((and var-info (macro-name? (cdr var-info))) 
+       ((and var-info (macro-name? (cdr var-info)))
         (set-cdr! var-info (eval-exp (caddr x) env))
 	(cadr x))
        ;; varが手続として定義されているケース
-       (var-info                                    
-        (set-macroname! (cadr x)) 
+       (var-info
+        (set-macroname! (cadr x))
 	(set-cdr! var-info (eval-exp (caddr x) env))
 	(cadr x))
        ;; varが未定義のケース
@@ -286,41 +285,55 @@
    ;; (define-macro (<変数> <仮引数部>) <本体>) 
    ;; -> (define <変数> (lambda (<仮引数部>) <本体>))
    ;; (define (<変数> . <仮引数>) <本体>) -> (define <変数> (lambda <仮引数> <本体>))
-   ((pair? (cadr x))
-    (my-define-macro (get-bitterdefmacro x) env))
+   ((and (pair? (cadr x)) (symbol? (caadr x)))
+    (my-define-macro
+     `(define-macro ,(caadr x) (lambda ,(cdadr x) ,@(cddr x)))
+     env))
    (else
-    (abort `("define-macro misc error: " ,x)))))
-
-;;; define-macroの糖衣構文を基本形に直したものを返す
-(define (get-bitterdefmacro x)
-  (assert `("error get-bitterdefmacro: " ,x)
-	  (and (list? x) (eq? (car x) 'define-macro) (>= (length x) 3)))
-  (if (symbol? (cadr x))
-      x
-      `(define-macro ,(caadr x) (lambda ,(cdadr x) ,@(cddr x)))))
-
-;;; (define-macro (Id Id* [. Id]) Body) -> (define-macro Id Exp)
-(define (desugar-defmcr defmcr)
-  (assert `("error define-macro syntax: " ,defmcr)
-	  (and (list? defmcr) (not (null? defmcr)) (eq? (car defmcr) 'define-macro)
-	       (>= (length defmcr) 3)))
-  (if (symbol? (cadr defmcr))
-      defmcr
-      (begin
-	(assert `("error define-macro syntax: " ,defmcr)
-		(and (pair? (cadr defmcr)) (symbol? (caadr def))))
-	`(define-macro ,(caadr defmcr) (lambda ,(cdadr defmcr) ,@(cddr defmcr))))))
+    (abort `("error define-macro syntax: " ,x)))))
 
 ;;; (lambda Arg Body)
 ;;; Arg  ::= Id | (Id* [Id . Id])
 ;;; Body ::= Define* Exp+
 (define (my-lambda x env)
   (let ((parms (cadr x))
-	(code (trans-body (cddr x) env)))
+	; (code (trans-body (cddr x) env))
+	(code (conv-to-exp (cddr x) env)))
     (lambda args (eval-exp code (extend-env parms args env)))))
 
+(define (conv-to-exp body env)
+  (define (body? defexp)
+    (cond
+     ((null? defexp)
+      #t)
+     ((eq? (car defexp) #t)
+      (body? (cdr defexp)))
+     ((eq? (car defexp) #f)
+      (not (member #t defexp)))))
+
+  (define (separate-defexp expanded-body def exp boollst)
+    (cond
+     ((null? expanded-body)
+      (if (null? def)
+	  (cons 'begin (reverse exp))
+	  `(letrec ,(reverse def) ,@(reverse exp))))
+     ((car boollst)
+      (separate-defexp (cdr expanded-body) 
+		       (cons (cdr (desugar-def (car expanded-body))) def)
+		       exp (cdr boollst)))		       
+     (else
+      (separate-defexp (cdr expanded-body) def (cons (car expanded-body) exp) 
+		       (cdr boollst)))))
+
+  (let* ((expanded-body (map (lambda (expr) (if (macro-name? expr) 
+						(macro-expand expr env) expr)) 
+			     body))
+	 (boollst       (map (lambda (def) (define? def)) expanded-body)))   
+
+    (assert `("error body syntax: " ,body) (body? boollst))
+    (separate-defexp expanded-body '() '() boollst)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; bodyがDefine+Exp*であれば等価なletrecに変換された式を返す
 (define (trans-body body env)
   (let* ((bitterbody (get-bitterbody body env))
 	 (defpart    (get-defpart bitterbody))
@@ -335,7 +348,6 @@
      (else
       `(letrec ,defpart ,@exppart)))))
 
-;;; 
 (define (get-bitterbody body env)
   (assert `("error get-bitterbody: " ,body) (list? body))
   (cond
@@ -345,15 +357,12 @@
     (cons (make-bodydefbitter (car body) env)
 	  (get-bitterbody (cdr body) env)))))
 
-;;; xが'defineで始まるリストなら糖衣構文を解いて返し, それ以外は与えられたxをそのまま返す.
-;;; xがマクロであれば展開され, 糖衣構文を解いたものが返される. 
 (define (make-bodydefbitter x env)
   (let ((maybedef (macro-expand x env)))
     (if (and (list? maybedef) (not (null? x))(eq? (car maybedef) 'define))
 	(get-bitterdef maybedef)
 	maybedef)))
 
-;;; 先頭がdefineのdefine構文のリストが糖衣構文であれば基本形(define Id Exp) に変形したものを返す
 (define (get-bitterdef x)
   (assert `("error get-bitterdef: " ,x) 
 	  (and (list? x) (eq? (car x) 'define) (>= (length x) 3)))
@@ -361,8 +370,6 @@
       x
       `(define ,(caadr x) (lambda ,(cdadr x) ,@(cddr x)))))
 
-;;; Def部がすべて非糖衣構文からなるBodyを受取り, Defineで表わされる部分をリストで返す. 
-;;; Defにあたるものが存在しなければ, ()を返す. 
 (define (get-defpart bitterbody)
   (cond
    ((or (null? bitterbody) (not (list? (car bitterbody))))
@@ -372,7 +379,6 @@
    (else
     '())))
 
-;;; Def部がすべて非糖衣構文からなるBodyを受取り, Exp+で表わされる部分をリストで返す. 
 (define (get-exppart bitterbody)
   (cond
    ((null? bitterbody)

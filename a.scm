@@ -1,8 +1,7 @@
 ;;; ##################################### MEMO #####################################
-
+;;; desugar-def, define? convtoexpのマクロ展開を考えること
 ;;; リネーム
 ;;; get-bitterdef      -> desugar-def
-;;; get-bitterdefmacro -> desugar-defmcr
 ;;; transbody          -> conv-to-exp
 ;;; get-bitterbody     -> 
 ;;; make-bodydefbitter ->
@@ -41,7 +40,7 @@
    (else
     (case (car x)
       ;; DefineはExpに含まれないからmy-defineは消さなければならない
-      ((define)       (my-define       x env))
+      ;((define)       (my-define       x env))
       ((lambda)       (my-lambda       x env))
       ((quote)        (cadr            x    ))
       ((set!)         (my-set!         x env))
@@ -62,7 +61,8 @@
 ;;; eval Body
 (define (eval-body body env)
   ;; ここに 構文チェックを入れる
-  (eval-exp (trans-body body env) env))
+  ;(eval-exp (trans-body body env) env)
+  (eval-exp (conv-to-exp body env) env))
 
 
 ;;; インタプリタ呼出し
@@ -84,7 +84,7 @@
 ;            | (load String)
 ; 
 ; Define ::= (define Id Exp)                   
-;          | (define (Id Id* [. Id]) Body)      
+;          | (define (Id Id* [. Id]) Body) 
 ; 
 ; Define-Macro ::= (define-macro Id Exp)
 ;                | (define-macro (Id Id* [. Id]) Body)
