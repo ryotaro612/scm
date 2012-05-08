@@ -325,11 +325,13 @@
       (separate-defexp (cdr expanded-body) def (cons (car expanded-body) exp) 
 		       (cdr boollst)))))
 
-  (let* ((expanded-body (map (lambda (expr) (if (macro-name? expr) 
-						(macro-expand expr env) expr)) 
+  (let* ((expanded-body (map (lambda (expr) (if (and (list? expr) (not (null? expr))
+						     (macro-name? (car expr)))
+						(macro-expand expr env)
+						expr))
 			     body))
-	 (boollst       (map (lambda (def) (define? def)) expanded-body)))   
-
+	 (boollst       (map (lambda (def) (define? def)) expanded-body)))
+    ; (display expanded-body) (newline)
     (assert `("error body syntax: " ,body) (body? boollst))
     (separate-defexp expanded-body '() '() boollst)))
 

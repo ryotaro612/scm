@@ -1,14 +1,4 @@
 ;;; ##################################### MEMO #####################################
-;;; desugar-def, define? convtoexpのマクロ展開を考えること
-;;; リネーム
-;;; get-bitterdef      -> desugar-def
-;;; transbody          -> conv-to-exp
-;;; get-bitterbody     -> 
-;;; make-bodydefbitter ->
-;;; get-bitterdef      ->
-;;; get-defpart        ->
-;;; get-exppart        ->
-
 ;;; ################################################################################
 '()
 
@@ -27,11 +17,10 @@
     (case (car x)
       ((define)       (my-define       x env))
       ((define-macro) (my-define-macro x env))
-      ((load)         (abort           `("UNDER CONSTRUCTION")))
+      ((load)         (my-load         x))
       (else           (eval-exp        x env))))))
 
 ;;; eval Exp
-;;; xよりもexpの方がよいのでは?
 (define (eval-exp x env)
   (cond
    ((symbol? x)     (get-val x env))
@@ -39,7 +28,6 @@
    ((macro-name? (car x)) (my-eval (macro-expand x env) env))
    (else
     (case (car x)
-      ;; DefineはExpに含まれないからmy-defineは消さなければならない
       ;((define)       (my-define       x env))
       ((lambda)       (my-lambda       x env))
       ((quote)        (cadr            x    ))

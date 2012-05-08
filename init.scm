@@ -47,6 +47,6 @@
    (cons 'eq?            eq?)
    (cons 'neq?           neq?)
    (cons 'equal?         equal?)
-   (cons 'load           load)
+   (cons 'load           my-load) ; load 
    (cons 'call/cc        call/cc)
    ))
