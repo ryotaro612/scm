@@ -1,4 +1,20 @@
 ;;; ##################################### MEMO #####################################
+;;; rename
+;;; my-define-macro var-info -> bound
+;;; my-begin x -> exp mapではなく再帰を利用
+;;; my-ifの x -> exp , "<#undef#>"追加
+;;; my-letrecの x -> exp
+;;; my-let*の x -> exp
+;;; my-letの x -> exp
+;;; my-named-letの x -> exp
+;;; my-defineで info -> bound
+;;; my-set!で id-info -> bound
+;;; get-varinfo                -> get-bound
+;;; *macro-symbols*            -> *macro-vars*
+;;; delete-macrodef            -> delete-macrodef!
+;;; (extend-env vars vals env) -> (extend-env parms args env)
+;;; macro-name?                -> macro-var?
+;;; macro-expand               -> expand-macro
 ;;; ################################################################################
 '()
 
@@ -10,48 +26,44 @@
 ;;; eval TopLevel
 (define (my-eval x env)
   (cond 
-   ((symbol? x)           (eval-exp x env))
-   ((not (pair? x))       (eval-exp x env))
-   ((macro-name? (car x)) (my-eval (macro-expand x env) env))
+   ((symbol? x)                   (eval-exp x env))
+   ((not (pair? x))               (eval-exp x env))
+   ((macro-var? (car x))          (my-eval (expand-macro x env) env))
    (else
     (case (car x)
-      ((define)       (my-define       x env))
-      ((define-macro) (my-define-macro x env))
-      ((load)         (my-load         x))
-      (else           (eval-exp        x env))))))
+      ((define)                   (my-define       x env))
+      ((define-macro)             (my-define-macro x env))
+      ((load)                     (my-load         x    ))
+      (else                       (eval-exp        x env))))))
 
 ;;; eval Exp
-(define (eval-exp x env)
+(define (eval-exp exp env)
   (cond
-   ((symbol? x)     (get-val x env))
-   ((not (pair? x)) x)
-   ((macro-name? (car x)) (my-eval (macro-expand x env) env))
+   ((symbol? exp)                 (get-val exp env))
+   ((not (pair? exp))             exp)
+   ((macro-var? (car exp))        (my-eval (expand-macro exp env) env))
    (else
-    (case (car x)
-      ;((define)       (my-define       x env))
-      ((lambda)       (my-lambda       x env))
-      ((quote)        (cadr            x    ))
-      ((set!)         (my-set!         x env))
-      ((let)          (my-let          x env))
-      ((let*)         (my-let*         x env))
-      ((letrec)       (my-letrec       x env))
-      ((if)           (my-if           x env))
-      ((cond)         (my-cond         x env))
-      ((and)          (my-and          x env))
-      ((or)           (my-or           x env))
-      ((begin)        (my-begin        x env))
-      ((do)           (my-do           x env))
+    (case (car exp)
+      ((lambda)                   (my-lambda       exp env))
+      ((quote)                    (cadr            exp    ))
+      ((set!)                     (my-set!         exp env))
+      ((let)                      (my-let          exp env))
+      ((let*)                     (my-let*         exp env))
+      ((letrec)                   (my-letrec       exp env))
+      ((if)                       (my-if           exp env))
+      ((cond)                     (my-cond         exp env))
+      ((and)                      (my-and          exp env))
+      ((or)                       (my-or           exp env))
+      ((begin)                    (my-begin        exp env))
+      ((do)                       (my-do           exp env))
+      ((define define-macro load) (abort `("error Exp syntax: " ,exp)))       
       (else
-       (apply (my-eval (car x) env)
-	      (map (lambda (y) (my-eval y env)) (cdr x))))))))
-
+       (apply (eval-exp (car exp) env) ; my-eval -> eval-exp
+	      (map (lambda (e) (eval-exp e env)) (cdr exp)))))))) ; my-eval-> eval-exp
 
 ;;; eval Body
 (define (eval-body body env)
-  ;; ここに 構文チェックを入れる
-  ;(eval-exp (trans-body body env) env)
   (eval-exp (conv-to-exp body env) env))
-
 
 ;;; インタプリタ呼出し
 (define (my-scm)
@@ -59,7 +71,7 @@
   (set! *global-env* (init-global-env))
   (newline) (display "initialize my-scm") (newline)
   (let loop ()
-    (display "my-scm> ") (flush) ; flushはGaucheの処理系依存の手続き
+    (display "my-scm> ") (flush)
     (display (my-eval (read) '()))
     (newline)
     (loop)))

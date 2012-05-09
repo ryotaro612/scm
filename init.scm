@@ -4,7 +4,7 @@
 (define *global-env* '())
 
 ;;; 大域環境のマクロの管理
-(define *macro-symbols* '())
+(define *macro-vars* '())
 
 ;;; エラー時の大域脱出のための関数
 (define init "abort")
@@ -47,6 +47,6 @@
    (cons 'eq?            eq?)
    (cons 'neq?           neq?)
    (cons 'equal?         equal?)
-   (cons 'load           my-load) ; load 
+   (cons 'load           my-load)
    (cons 'call/cc        call/cc)
    ))

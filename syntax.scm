@@ -7,17 +7,17 @@
   (cond
    ;; (define Id Exp) のケース
    ((symbol? (cadr x))
-    (let ((info (get-varinfo (cadr x) env)))
+    (let ((bound (get-bound (cadr x) env)))
       (cond
        ;; シンボルが既にマクロとして定義されているケース
-       ((and info (macro-name? (car info)))
-	  (delete-macrodef (car info))
-	  (set-cdr! info (eval-exp (caddr x) env))
- 	  (car info))
+       ((and bound (macro-var? (car bound)))
+	  (delete-macrodef!   (car bound))
+	  (set-cdr!           bound (eval-exp (caddr x) env))
+ 	  (car                bound))
        ;; シンボルがマクロ以外(変数/手続き)として定義されているケース
-       (info
-	  (set-cdr! info (eval-exp (caddr x) env))
-	  (car info))
+       (bound
+	  (set-cdr! bound (eval-exp (caddr x) env))
+	  (car bound))
        ;; それ以外(シンボルが未定義の場合)
        (else
 	(set! *global-env*
@@ -49,16 +49,16 @@
 ;;; (set! Id Exp)
 (define (my-set! x env)
   (assert `("error set! syntax: " ,x) 
-	  (and (list? x) (eq? (car x) 'set!) (= (length x) 3) (symbol? (cadr x))))
-  (let* ((id (cadr x)) (exp (caddr x)) (id-info (get-varinfo id env)))
+	  (and (list? x) (= (length x) 3) (eq? (car x) 'set!) (symbol? (cadr x))))
+  (let* ((id (cadr x)) (exp (caddr x)) (bound (get-bound id env)))
     (cond
      ;; idがマクロとして定義されている場合
-     ((and id-info (macro-name? id))
-      (delete-macrodef id)
-      (set-cdr! id-info (eval-exp exp env)))
+     ((and bound (macro-var? id))
+      (delete-macrodef! id)
+      (set-cdr! bound (eval-exp exp env)))
      ;; idがマクロ以外(値/手続き)として定義されている場合
-     (id-info
-      (set-cdr! id-info (eval-exp exp env)))
+     (bound
+      (set-cdr! bound (eval-exp exp env)))
      ;; idが未定義の場合
      (else
       (abort `(,id " is not defined."))))))
@@ -73,31 +73,31 @@
     #f)))
 
 ;;; (let [Id] Bindings Body)
-(define (my-let x env)
-  (assert `("error let syntax: " ,x)
-	  (and (list? x) (eq? (car x) 'let) (>= (length x) 3)))
+(define (my-let exp env)
+  (assert `("error let syntax: " ,exp)
+	  (and (list? exp) (>= (length exp) 3) (eq? (car exp) 'let)))
   (cond
    ;; 名前付きletのケース
-   ((symbol? (cadr x))
-    (my-namedlet x env))
+   ((symbol? (cadr exp))
+    (my-namedlet exp env))
    ;; 束縛がないケース
    ;; (let () Body)            -> (lambda () Body)
-   ((null? (cadr x))
-    (eval-exp `((lambda () ,@(cddr x))) env))
+   ((null? (cadr exp))
+    (eval-exp `((lambda () ,@(cddr exp))) env))
    ;; 束縛があるケース
    ;; (let ((x a) (y b)) Body) -> ((lambda (x y) Body) a b)
    (else
-    (assert `("error let syntax: " ,x) (bindings? (cadr x)))
-    (eval-exp `((lambda ,(map car (cadr x)) ,@(cddr x)) ,@(map cadr (cadr x)))
+    (assert `("error let syntax: " ,exp) (bindings? (cadr exp)))
+    (eval-exp `((lambda ,(map car (cadr exp)) ,@(cddr exp)) ,@(map cadr (cadr exp)))
 	      env))))
 
 ;;; (let Id Bindings Body)
 ;;; 名前付きlet, my-letで利用される補助関数
 ;;; (let Id Bindigs Body) -> (letrec ((Id (lambda (args) Body))) (Id actuals))
-(define (my-namedlet x env)
-  (assert `("error named let syntax: " ,x) 
-	  (and (list? x) (bindings? (caddr x)) (>= (length x) 4)))
-  (let ((id (cadr x)) (bindings (caddr x)) (body (cdddr x)))
+(define (my-namedlet exp env)
+  (assert `("error named let syntax: " ,exp) 
+	  (and (list? exp) (>= (length exp) 4) (bindings? (caddr exp))))
+  (let ((id (cadr exp)) (bindings (caddr exp)) (body (cdddr exp)))
     (if (null? bindings)
 	;; 束縛がないケース
 	(my-letrec 
@@ -108,11 +108,12 @@
 	    (,id ,@(map cadr bindings))) env))))
 
 ;;; (let* Bindings Body)
-(define (my-let* x env)
-  (assert `("error let* syntax: " ,x) 
-	  (and (list? x) (eq? (car x) 'let*) 
-	       (>= (length x) 3) (bindings? (cadr x))))
-  (let ((bindings (cadr x)) (body (cddr x)))
+(define (my-let* exp env)
+  (assert `("error let* syntax: " ,exp) 
+	  (and (list? exp) (>= (length exp) 3) 
+	       (eq? (car exp) 'let*) (bindings? (cadr exp))))
+	        
+  (let ((bindings (cadr exp)) (body (cddr exp)))
     (if (null? bindings)
 	;; 束縛がないケース
 	(eval-exp `((lambda () ,@body)) env)
@@ -123,27 +124,30 @@
 	 env))))
 
 ;;; (letrec Bindings Body)
-(define (my-letrec x env)
-  (assert `("error letrec syntax: " ,x)
-	  (and (list? x) (eq? (car x) 'letrec)
-	       (>= (length x) 3) (bindings? (cadr x))))
-  (if (null? (cadr x))
+(define (my-letrec exp env)
+  (assert `("error letrec syntax: " ,exp)
+	  (and (list? exp) (>= (length exp) 3) 
+	       (eq? (car exp) 'letrec) (bindings? (cadr exp))))
+	       
+  (if (null? (cadr exp))
       ;; 束縛がないケース
-      (eval-exp `((lambda () ,@(cddr x))) env)
+      (eval-exp `((lambda () ,@(cddr exp))) env)
       ;; 束縛があるケース
       (my-let
-       `(let ,(map (lambda (lst) (list (car lst) "<#undef#>")) (cadr x))
-	  ,@(map (lambda (lst) (cons 'set! lst)) (cadr x)) ,@(cddr x))
+       `(let ,(map (lambda (lst) (list (car lst) "<#undef#>")) (cadr exp))
+	  ,@(map (lambda (lst) (cons 'set! lst)) (cadr exp)) ,@(cddr exp))
        env)))
 
 ;;; (if Exp Exp [Exp])
-(define (my-if x env)
-  (assert `("error if syntax: " ,x) 
-	  (and (list? x) (eq? (car x) 'if) (or (= (length x) 3) (= (length x) 4))))
-  (if (eval-exp (cadr x) env)
-      (eval-exp (caddr x) env)
-      (if (not (null? (cdddr x)))
-	  (eval-exp (cadddr x) env))))
+(define (my-if exp env)
+  (assert `("error if syntax: " ,exp) 
+	  (and (list? exp) 
+	       (or (= (length exp) 3) (= (length exp) 4)) (eq? (car exp) 'if)))
+  (if (eval-exp (cadr exp) env)
+      (eval-exp (caddr exp) env)
+      (if (null? (cdddr exp))
+	  "<#undef#>"
+	  (eval-exp (cadddr exp) env))))
 
 ;;; (cond (Exp Exp+)* [(else Exp+)])
 (define (my-cond exp env)
@@ -218,11 +222,18 @@
     (or-sub (cdr exp) env)))
 
 ;;; (begin Exp*)
-(define (my-begin x env)
-  (assert `("error begin syntax: " ,x) (and (list? x) (eq? (car x) 'begin)))
-  (if (not (null? (cdr x)))
-      (car (last (map (lambda (y) (eval-exp y env))
-		      (cdr x))))))
+(define (my-begin exp env)
+  (define (begin-sub e env)
+    (cond
+     ((null? e)
+      "<#undef#>")
+     ((null? (cdr e))
+      (eval-exp (car e) env))
+     (else
+      (eval-exp (car e) env) (begin-sub (cdr e) env))))
+  
+  (assert `("error begin syntax: " ,exp) (and (list? exp) (eq? (car exp) 'begin)))  
+  (begin-sub (cdr exp) env))
 
 ;;; (do ((Id Exp Exp)*) (Exp Exp*) Body)
 (define (my-do exp env)
@@ -235,6 +246,14 @@
 	  (else
 	   #f)))
 
+  (define (bind-step iter-specs ex-env)
+    (let ((step-vals (map (lambda (iter-spec) (eval-exp (caddr iter-spec) ex-env))  
+			  iter-specs)))
+      (map 
+       (lambda (iter-spec step-val) 
+	 (set-cdr! (get-bound (car iter-spec) ex-env) step-val))
+       iter-specs step-vals)))
+    
   (assert `("error do syntax: " ,exp)
 	  (and (list? exp) (eq? (car exp) 'do) (>= (length exp) 4)
 	       (iter-specs? (cadr exp)) (list? (caddr exp)) 
@@ -252,29 +271,25 @@
     (if (eval-exp test                ex-env)
 	(eval-exp `(begin ,@tail-seq) ex-env)
 	(begin (eval-body body ex-env)
-	       (loop iter-specs test tail-seq body
-		     (extend-env (map car iter-specs)
-				 (map (lambda (iter-spec) (eval-exp (caddr iter-spec) ex-env)) 
-				      iter-specs)
-				 ex-env))))))
+	       (bind-step iter-specs ex-env)
+	       (loop iter-specs test tail-seq body ex-env)))))
 
-;;; (define-macro Id Exp) | (define-macro (Id Id* [. Id]) Body)
 (define (my-define-macro x env)
   (assert `("error define-macro syntax: " ,x)
 	  (and (list? x) (>= (length x) 3) (eq? (car x) 'define-macro)))
   (cond
    ;; (define-macro Id Exp) のケース
    ((symbol? (cadr x))
-    (let ((var-info (get-varinfo (cadr x) env)))
+    (let ((bound (get-bound (cadr x) env)))
       (cond
        ;; varがマクロとして定義されているケース
-       ((and var-info (macro-name? (cdr var-info)))
-        (set-cdr! var-info (eval-exp (caddr x) env))
+       ((and bound (macro-var? (cdr bound)))
+        (set-cdr! bound (eval-exp (caddr x) env))
 	(cadr x))
        ;; varが手続として定義されているケース
-       (var-info
+       (bound
         (set-macroname! (cadr x))
-	(set-cdr! var-info (eval-exp (caddr x) env))
+	(set-cdr! bound (eval-exp (caddr x) env))
 	(cadr x))
        ;; varが未定義のケース
        (else
@@ -295,11 +310,25 @@
 ;;; (lambda Arg Body)
 ;;; Arg  ::= Id | (Id* [Id . Id])
 ;;; Body ::= Define* Exp+
-(define (my-lambda x env)
-  (let ((parms (cadr x))
-	; (code (trans-body (cddr x) env))
-	(code (conv-to-exp (cddr x) env)))
-    (lambda args (eval-exp code (extend-env parms args env)))))
+(define (my-lambda exp env)
+  (define (improper-arg? arg)
+    (cond
+     ((and (symbol? (car arg)) (symbol? (cdr arg)))
+      #t)
+     ((and (symbol? (car arg)) (pair? (cdr arg)))
+      (improper-arg? (cdr arg)))
+     (else
+      #f)))
+
+  (assert `("error lambda syntax: " ,exp)
+	  (and (list? exp) (>= (length exp) 3) (eq? (car exp) 'lambda)
+	       (or (symbol? (cadr exp))
+		   (and (list? (cadr exp))
+			(not (member #f (map symbol? (cadr exp)))))
+		   (and (pair? (cadr exp)) (improper-arg? (cadr exp))))))
+
+  (lambda args (eval-exp (conv-to-exp (cddr exp) env)
+			 (extend-env (cadr exp) args env))))
 
 (define (conv-to-exp body env)
   (define (body? defexp)
@@ -326,67 +355,10 @@
 		       (cdr boollst)))))
 
   (let* ((expanded-body (map (lambda (expr) (if (and (list? expr) (not (null? expr))
-						     (macro-name? (car expr)))
-						(macro-expand expr env)
+						     (macro-var? (car expr)))
+						(expand-macro expr env)
 						expr))
 			     body))
 	 (boollst       (map (lambda (def) (define? def)) expanded-body)))
-    ; (display expanded-body) (newline)
     (assert `("error body syntax: " ,body) (body? boollst))
     (separate-defexp expanded-body '() '() boollst)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define (trans-body body env)
-  (let* ((bitterbody (get-bitterbody body env))
-	 (defpart    (get-defpart bitterbody))
-	 (exppart    (get-exppart bitterbody)))
-    (cond
-     ((and (null? defpart) (null? exppart))
-      '())
-     ((and (null? defpart) (= (length exppart) 1))
-      (car exppart))
-     ((null? defpart)
-      (cons 'begin exppart))
-     (else
-      `(letrec ,defpart ,@exppart)))))
-
-(define (get-bitterbody body env)
-  (assert `("error get-bitterbody: " ,body) (list? body))
-  (cond
-   ((null? body)
-    body)
-   (else
-    (cons (make-bodydefbitter (car body) env)
-	  (get-bitterbody (cdr body) env)))))
-
-(define (make-bodydefbitter x env)
-  (let ((maybedef (macro-expand x env)))
-    (if (and (list? maybedef) (not (null? x))(eq? (car maybedef) 'define))
-	(get-bitterdef maybedef)
-	maybedef)))
-
-(define (get-bitterdef x)
-  (assert `("error get-bitterdef: " ,x) 
-	  (and (list? x) (eq? (car x) 'define) (>= (length x) 3)))
-  (if (symbol? (cadr x))
-      x
-      `(define ,(caadr x) (lambda ,(cdadr x) ,@(cddr x)))))
-
-(define (get-defpart bitterbody)
-  (cond
-   ((or (null? bitterbody) (not (list? (car bitterbody))))
-    '())
-   ((and (not (null? (car bitterbody))) (eq? (caar bitterbody) 'define))
-    (cons (cdar bitterbody) (get-defpart (cdr bitterbody))))
-   (else
-    '())))
-
-(define (get-exppart bitterbody)
-  (cond
-   ((null? bitterbody)
-    bitterbody)
-   ((and (list? (car bitterbody)) (not (null? (car bitterbody)))
-	 (eq? (caar bitterbody) 'define))
-    (get-exppart (cdr bitterbody)))
-   (else
-    (cons (car bitterbody) (get-exppart (cdr bitterbody))))))
