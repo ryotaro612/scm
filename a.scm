@@ -1,4 +1,5 @@
 ;;; ##################################### MEMO #####################################
+;;; my-do bind-step -> step
 ;;; rename
 ;;; my-define-macro var-info -> bound
 ;;; my-begin x -> exp mapではなく再帰を利用
@@ -58,14 +59,14 @@
       ((do)                       (my-do           exp env))
       ((define define-macro load) (abort `("error Exp syntax: " ,exp)))       
       (else
-       (apply (eval-exp (car exp) env) ; my-eval -> eval-exp
-	      (map (lambda (e) (eval-exp e env)) (cdr exp)))))))) ; my-eval-> eval-exp
+       (apply (eval-exp (car exp) env)
+	      (map (lambda (e) (eval-exp e env)) (cdr exp))))))))
 
 ;;; eval Body
 (define (eval-body body env)
   (eval-exp (conv-to-exp body env) env))
 
-;;; インタプリタ呼出し
+;;; imitate a scheme interpreter
 (define (my-scm)
   (call/cc (lambda (cc) (set! init cc)))
   (set! *global-env* (init-global-env))

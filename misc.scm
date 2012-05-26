@@ -24,12 +24,10 @@
 ;;; (neq? obj1 obj2)
 (define (neq? a b) (not (eq? a b)))
 
-;;; predが#fの場合にabortを呼び出す
 (define (assert info pred)
   (if (not pred)
       (abort info)))
 
-;;; エラーメッセージを表示して, インタプリタを初期化する
 (define (abort info)
   (cond
    ((null? info)

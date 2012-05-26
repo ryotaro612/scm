@@ -1,13 +1,12 @@
 
 
-;;; 大域環境のシンボルの管理
+;;; A-list
 (define *global-env* '())
 
-;;; 大域環境のマクロの管理
+;;; macro variable list
 (define *macro-vars* '())
 
-;;; エラー時の大域脱出のための関数
-(define init "abort")
+(define init "error")
 
 (define (init-global-env)
   (list

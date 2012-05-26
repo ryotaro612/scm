@@ -59,3 +59,15 @@ a ;==> 4
       ((= n1 1) p)
     ()
     ))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define xyz '(x y z))
+(let ((xyz '(z y x))) 
+  xyz) ;  ==> (z y x)
+
+(define tree-copy 
+  (lambda (tr) 
+    (if (not (pair? tr)) 
+	tr 
+	(cons (tree-copy (car tr)) (tree-copy (cdr tr))))))
+(tree-copy '((a . b) . c)) ;; ==> ((a . b) . c)
