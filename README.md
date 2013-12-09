@@ -1,0 +1,2 @@
+# INFO
+install gauche
