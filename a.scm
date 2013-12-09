@@ -1,24 +1,3 @@
-;;; ##################################### MEMO #####################################
-;;; my-do bind-step -> step
-;;; rename
-;;; my-define-macro var-info -> bound
-;;; my-begin x -> exp mapではなく再帰を利用
-;;; my-ifの x -> exp , "<#undef#>"追加
-;;; my-letrecの x -> exp
-;;; my-let*の x -> exp
-;;; my-letの x -> exp
-;;; my-named-letの x -> exp
-;;; my-defineで info -> bound
-;;; my-set!で id-info -> bound
-;;; get-varinfo                -> get-bound
-;;; *macro-symbols*            -> *macro-vars*
-;;; delete-macrodef            -> delete-macrodef!
-;;; (extend-env vars vals env) -> (extend-env parms args env)
-;;; macro-name?                -> macro-var?
-;;; macro-expand               -> expand-macro
-;;; ################################################################################
-'()
-
 (load "./init.scm")
 (load "./misc.scm")
 (load "./syntax.scm")
@@ -70,6 +49,7 @@
 (define (my-scm)
   (call/cc (lambda (cc) (set! init cc)))
   (set! *global-env* (init-global-env))
+  (my-eval '(load "./test.scm") '())
   (newline) (display "initialize my-scm") (newline)
   (let loop ()
     (display "my-scm> ") (flush)

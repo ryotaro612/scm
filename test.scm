@@ -2,27 +2,31 @@
 
 (define-macro (set-nil! x) (list 'define x ()))
 
+(define (even? x)
+  (if (= x 0) #t (odd? (- x 1))))
+(define (odd? x)
+  (if (= x 1) #t (even? (- x 1))))
+
 (define (fact n)
-  (let iter ((n n) (a 1))
+  (let loop ((n n) (a 1))
     (if (= n 0)
 	a
-	(iter (- n 1) (* a n)))))
+	(loop (- n 1) (* a n)))))
 
-(define (my-reverse ls)
-  (let iter ((ls ls) (a '()))
-    (if (null? ls)
+(define (my-reverse lst)
+  (let loop ((lst lst) (a '()))
+    (if (null? lst)
 	a
-	(iter (cdr ls) (cons (car ls) a)))))
+	(loop (cdr lst) (cons (car lst) a)))))
 
 (define (fact-letrec n)
-  (letrec ((iter (lambda (n1 p)
-		   (if (= n1 1)
-		       p 
-		       (let ((m (- n1 1)))
-			 (iter m (* p m)))))))
-    (iter n n)))
+  (letrec ((loop (lambda (n m)
+		   (if (= n 0)
+		       m
+		       (loop (- n 1) (* m n))))))
+    (loop n 1)))
 
 (define (fact-do n)
-  (do ((n1 n (- n1 1)) (p n (* p (- n1 1))))
-      ((= n1 1) p)
+  (do ((n n (- n 1)) (m 1 (* m n)))
+      ((= n 0) m)
     ()))
