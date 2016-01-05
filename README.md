@@ -1,2 +1,2 @@
-# INFO
+# SCM
 install gauche
